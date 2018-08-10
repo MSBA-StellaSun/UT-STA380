@@ -1,0 +1,657 @@
+---
+title: 'STA 380-Part 2: Exercises 1'
+author: "Shuyuan Sun,Mengying Yu,Cuiting Zhong,Lining Jiang"
+date: "August 5, 2018"
+output: html_document
+---
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+#Probability practice  
+##Part A  
+**Visitors to your website are asked to answer a single survey question before they get access to the content on the page. Among all of the users, there are two categories: Random Clicker (RC), and Truthful Clicker (TC). There are two possible answers to the survey: yes and no. Random clickers would click either one with equal probability. You are also giving the information that the expected fraction of random clickers is 0.3.**
+
+**After a trial period, you get the following survey results: 65% said Yes and 35% said No.**
+
+**What fraction of people who are truthful clickers answered yes?**
+
+Given:  
+$P(yes)=0.65$  
+$P(yes|RC)=0.5$  
+$P(RC)=0.3$  
+$P(TC)=0.7$  
+
+And:  
+$P(yes)=P(yes,RC)+P(yes,TC)=P(yes|RC)*P(RC)+P(yes|TC)*P(TC)$  
+$0.65=0.3*0.5+P(yes|TC)*0.7$  
+
+Therefore:  
+$P(yes|TC)=(0.65-0.3*0.5)/0.7=0.714$  
+Among those people who are truthful clickers, 71.4% answered yes.  
+
+##Part B  
+**Imagine a medical test for a disease with the following two attributes:**
+
+*The sensitivity is about 0.993. That is, if someone has the disease, there is a probability of 0.993 that they will test positive.*
+
+*The specificity is about 0.9999. This means that if someone doesn't have the disease, there is probability of 0.9999 that they will test negative.*
+
+**In the general population, incidence of the disease is reasonably rare: about 0.0025% of all people have it (or 0.000025 as a decimal probability).**
+
+**Suppose someone tests positive. What is the probability that they have the disease? In light of this calculation, do you envision any problems in implementing a universal testing policy for the disease?**
+
+Name:  
+$'yes'='actually has disease'$   
+$'no'='actually no diease'$  
+$'+'='test positive'$  
+$'-'='test negative'$  
+
+Given:  
+$sensitivity=P(+|yes)=0.993$  
+$specificity=P(-|no)=0.9999$  
+i.e. $P(+|no)=0.0001$  
+$P(yes)=0.000025$  
+
+And:  
+$P(+)=P(+,yes)+P(+,no)=P(+|yes)*P(yes)+P(+|no)*P(no)=0.993*0.000025+0.0001*(1-0.000025)=0.0001248$  
+
+Therefore:  
+$P(yes|+)=P(yes)*P(+|yes)/P(+)=0.000025*0.993/0.0001248=0.1989$  
+Suppose someone tests positive. the probability that they have the disease is only 19.89%.  
+This test should not be implemented universally because the probabilities of having this disease or not are extremely imbalanced. Only having high sensitivity and specificity is not enough, and this will cause a huge amount of people who actually don't have the disease to spend unnecessarily on treatments.  
+
+#Exploratory analysis: green buildings  
+**Do you agree with the conclusions of her on-staff stats guru? If so, point to evidence supporting his case. If not, explain specifically where and why the analysis goes wrong, and how it can be improved. (For example, do you see the possibility of confounding variables for the relationship between rent and green status?)**
+
+**Note: this is intended mainly as an exercise in visual and numerical story-telling. Tell your story primarily in plots, and while you can run a regression model if you want, that's not the goal here. Keep it concise.**
+  
+###1. Discussion about guru's data cleaning  
+#####Read in data and divided into two groups (leasing rate<=10%/>10%)   
+```{r,results = 'hide'}
+library(dplyr)
+library(mosaic)
+library(ggplot2)
+library(corrplot)
+library(ggpubr)
+green=read.csv('https://raw.githubusercontent.com/jgscott/STA380/master/data/greenbuildings.csv')
+attach(green)
+names(green)
+str(green)
+green$amenities=as.factor(green$amenities)
+green$class_a=as.factor(green$class_a)
+green$class_b=as.factor(green$class_b)
+green$cluster=as.factor(green$cluster)
+green$Energystar=as.factor(green$Energystar)
+green$green_rating=as.factor(green$green_rating)
+green$LEED=as.factor(green$LEED)
+green$net=as.factor(green$net)
+green$renovated=as.factor(green$renovated)
+
+green_copy=green
+green_copy[is.na(green_copy)]=0
+green_copy$occupancy10[green_copy$leasing_rate>=10]='>=10%'
+green_copy$occupancy10[green_copy$leasing_rate<10]='<10%'
+green90=subset(green,leasing_rate>=10)
+green10=subset(green,leasing_rate<10)
+```
+
+#####Histogram of leasing rate and fivestats of the two groups  
+```{r}
+hist(green$leasing_rate,breaks=10)
+```
+  
+First from this histogram we can see that there are relatively more buildings with leasing rate below 10%. There may be some reasons causing these buildings to have lower occupancy. So we examined the summaries if the two groups and found some variables with different features in different leasing rate groups. For example, below are the fivestats and corresponding boxplots for the two groups:
+
+```{r}
+print("Age")
+favstats(green_copy$age~green_copy$occupancy10)
+print("Size")
+favstats(green_copy$size~green_copy$occupancy10)
+print("Stories")
+favstats(green_copy$stories~green_copy$occupancy10)
+x=ggplot(green_copy,aes(x=occupancy10,y=age))+geom_boxplot(fill='#c1dbee')+theme_bw()
+y=ggplot(green_copy,aes(x=occupancy10,y=size))+geom_boxplot(fill='#c1dbee')+theme_bw()
+z=ggplot(green_copy,aes(x=occupancy10,y=stories))+geom_boxplot(fill='#c1dbee')+theme_bw()
+ggarrange(x,y,z, ncol = 3, nrow = 1)
+```
+  
+```{r}
+fraction_green10 = nrow(subset(green10, green_rating==1))/nrow(green10)
+fraction_green90= nrow(subset(green90, green_rating==1))/nrow(green90)
+print("Fraction of green buildings in group with leasing rate<=10% is") 
+fraction_green10
+print("Fraction of green buildings in group with leasing rate>10% is")
+fraction_green90
+```
+
+Based on the plots above, we see that buildings which have lower leasing rates are much likely to be old building, and their size and stories are low. We also noticed that the fraction of green buildings in group<=10% is only 0.47%. However it is 8.9% in group>10%. If we include these data in our dataset, they may cause a bias for our analysis. So, we removed the ovbservations which leasing rate is lower than 10%.  
+
+
+###2. Discussion about rent and green status   
+
+According to the guru, calculating the extra revenue by multiplying the square feet with extra median rent figure means that the green buildings all have a rent of 27.60 USD, and the non-green ones all are $25 per square foot per year. However, not to mention using median as a substitute, the rent itself is decided not only by the green-status. There are other confounding variables influencing the rent and the green status.  
+"Confounding variables are an outside influence that change the effect of a dependent and independent variable. Confounding variables can ruin an experiment and produce useless results. They suggest that there are correlations when there really are not."   
+We should find and study all the confounding variables to obtain more accurate results. Exploratory analysis could help us find the relationships between variables. 
+  
+####Correlation plot  
+First let's look at the correlations between numeric variables.  
+
+```{r}
+numerical = unlist(lapply(green_copy, is.numeric))
+green_num=green_copy[, numerical]
+M = cor(green_num)
+corrplot(M, tl.cex=0.7, cl.cex=0.7, number.cex=0.6,method='circle',type='upper',order='hclust')
+```
+  
+From the correlation plot we can see roughly that there are many variables correlated with the target--Rent.  
+
+  
+####Numerical variables     
+```{r}
+p1=ggplot(green, aes(x=age, y=Rent))+geom_point(color=green_rating+8)+geom_smooth(color='#23527f')+theme_bw()
+p2=ggplot(green, aes(x=cd_total_07, y=Rent))+geom_point(color=green_rating+8)+theme_bw()
+p3=ggplot(green, aes(x=cluster_rent, y=Rent))+geom_point(color=green_rating+8)+geom_smooth(color='#23527f')+theme_bw()
+p4=ggplot(green, aes(x=Electricity_Costs, y=Rent))+geom_point(color=green_rating+8)+theme_bw()
+ggarrange(p1,p2,p3,p4, 
+          ncol = 2, nrow = 2)
+```
+  
+(Black dots represent those with a green rating. Grey dots are those not.) As seen from the scatterplot, those buildings with a longer age tend to have a lower rent, which is fairly obvious. Those with fewer cooling degree days tend to have a higher rent maybe because fewer cooling degree days means the temperature is not extreme and requires less cooling. Because the cluster rent is calculated by individual rents in the cluster, so there is a linear relationship. Moreover, most of the buildings are not on a "net contract" basis, so with utility costs included, the higher the electricity costs, the higher the rent.  
+
+```{r}
+p5=ggplot(green, aes(x=empl_gr, y=Rent))+geom_point(color=green_rating+8)+theme_bw()
+p6=ggplot(green, aes(x=Gas_Costs, y=Rent))+geom_point(color=green_rating+8)+theme_bw()
+p7=ggplot(green, aes(x=hd_total07, y=Rent))+geom_point(color=green_rating+8)+theme_bw()
+p8=ggplot(green, aes(x=leasing_rate, y=Rent))+geom_point(color=green_rating+8)+geom_smooth(color='#23527f')+theme_bw()
+ggarrange(p5,p6,p7,p8, 
+          ncol = 2, nrow = 2)
+```
+  
+Accordingly, gas costs are similar to electricity costs and heating degree days to cooling degree days. While the leasing rate(occupancy) increases, the rent will also increase.  
+
+```{r}
+p9=ggplot(green, aes(x=Precipitation, y=Rent))+geom_point(color=green_rating+8)+theme_bw()
+p10=ggplot(green, aes(x=size, y=Rent))+geom_point(color=green_rating+8)+geom_smooth(color='#23527f')+theme_bw()
+p11=ggplot(green, aes(x=stories, y=Rent))+geom_point(color=green_rating+8)+geom_smooth(color='#23527f')+theme_bw()
+p12=ggplot(green, aes(x=total_dd_07, y=Rent))+geom_point(color=green_rating+8)+theme_bw()
+ggarrange(p9,p10,p11,p12, 
+          ncol = 2, nrow = 2)
+```
+  
+As seen, when the size and stories of a building increase, the rent will usually increase.  
+
+####Categorical variables  
+Then let's examine categorical variables.  
+
+```{r}
+green_copy$class=ifelse(as.numeric(as.character(class_a))==1, 'a', (ifelse(as.numeric(as.character(class_b))==1,'b','c')))
+green_copy$green=ifelse(as.numeric(as.character(Energystar))==1, 'Energystar', (ifelse(as.numeric(as.character(LEED))==1,'LEED','None')))
+green_copy$class=as.factor(green_copy$class)
+p13=ggplot(green,aes(x=amenities,y=Rent,fill=green_rating))+geom_boxplot(fill='#c1dbee')+theme_bw()
+p14=ggplot(green_copy,aes(x=class,y=Rent))+geom_boxplot(fill='#c1dbee')+theme_bw()
+p15=ggplot(green_copy,aes(x=green,y=Rent))+geom_boxplot(fill='#c1dbee')+theme_bw()
+p16=ggplot(green,aes(x=green_rating,y=Rent))+geom_boxplot(fill='#c1dbee')+theme_bw()
+p17=ggplot(green,aes(x=net,y=Rent))+geom_boxplot(fill='#c1dbee')+theme_bw()
+p18=ggplot(green,aes(x=renovated,y=Rent))+geom_boxplot(fill='#c1dbee')+theme_bw()
+ggarrange(p13,p14,ncol = 2, nrow = 1)
+```
+  
+It seems that whether at least one of the amenities is available has not much impact on the rent. But from the right plot we can see that higher-quality properties(like Class A) will charge higher rents.  
+
+```{r}
+ggarrange(p15,p16,ncol = 2, nrow = 1)
+```
+  
+From the right plot, those buildings with a green rating will have higher rents. But plot on the left indicates that it is mainly the "Energystar" rating that raises the rent.  
+```{r}
+ggarrange(p17,p18,ncol = 2, nrow = 1)
+```
+  
+With a net contract basis, the rent spread is relatively small, and the rent on average is lower(obviously because no utility cost is included). Those buildings undergone substantial renovations charge a lower rent. Maybe this is because the fact of going through renovations indicates a poorer quality or a longer age of the building.  
+   
+To sum up, there are many other variables influencing on our target Rent. Thus, only taking into account the green status is not enough for estimating the rent of a building.   
+  
+###3. The rent difference between green buildings and non-green buildings  
+```{r}
+cluster_number = unique(green90$cluster)
+rent_diff = rep(0, 691)
+j = 1
+for(i in cluster_number){
+  subcluster = subset(green90, green90$cluster==i)
+  subcluster_nongreen = subset(subcluster, green_rating==0)
+  subcluster_green = subset(subcluster, green_rating==1)
+  if(nrow(subcluster_green) != 0 && nrow(subcluster_nongreen)!=0)
+  {
+  mean_rent = mean(subcluster_nongreen$Rent)
+  rent_diff[j] = mean(subcluster_green$Rent) - mean_rent
+  }
+  else {rent_diff[j] = 0}
+  j = j + 1
+}
+# find the confident interval of rent_diff
+
+hist(rent_diff, breaks=40, col="#c1dbee") 
+summary(rent_diff)
+xbar = mean(rent_diff)
+sig_hat = sd(rent_diff)
+se_hat = sig_hat/sqrt(length(rent_diff))
+print("confidence interval")
+xbar + c(-1.96,1.96)*se_hat
+```
+   
+Since the dataset was seperated in small clusters and some variables such as the growth rate in employment and precipitation are same, it is more convincible to use the difference of rent between green buildings and non-green buildings which are in a same cluster to decide the type of our building. We calculated the difference of rent in each cluster and then found that the mean is about 3.1, the 95% confident interval is (2.54, 3.64). It is a strong evidence to show that green building has a higher rent price than non-green building and we can assume that we can earn 3.1dollars more per square foot per calendar year.  
+
+
+```{r}
+green_building =subset(green90, green90$green_rating==1)
+# a is important
+g=ggplot(green_building, aes(class_a, Rent))
+g + geom_boxplot(aes(group = cut_width(class_a, 0.25)),fill='#c1dbee')+theme_bw()
+
+g=ggplot(green_building, aes(class_a, leasing_rate))
+g + geom_boxplot(aes(group = cut_width(class_a, 0.25)),fill='#c1dbee')+theme_bw()
+```
+  
+Based on the plots we showed above, we found that people who prefer to green buildings much likely to rent the green buildings which are Class A buildings, i.e. the highest-quality properties in a given market. Moreoever, the rent price of green buildings which are Class A buildings is also higher than other green buildings.  
+
+###4. Other aspects to consider  
+The rent should be estimated using all known information. For example, "a **new**, **15-story**, **mixed-use** building on East Cesar Chavez, just across I-35 from **downtown**". Instead of only considering the green status, all the information could be plugged into a regression model to estimate the rent.  
+Moreover, to calculate the economic value of a project, we should also take into consderation the value of money. What the guru says *"Based on the extra revenue we would make, we would recuperate these costs in $5000000/650000 = 7.7 years. Even if our occupancy rate were only 90%, we would still recuperate the costs in a little over 8 years"* does not include value of money in his calculation.   
+Typically, we calculate the net present value(NPV) to evaluate a project. For example, estimated extra rent is 250000*3.1(mean)=775000 annually(which will be discounted by the discount factor), extra investment is 5000000; if we want this project to begin to generate profit in 8 years, the IRR should be 5.05%.In rhe other words, if the interest rate is lower than 5.05%, we can invest in a green building if we want to get profit in 8 years. 
+
+###5. Conclusion
+The green building has a higher leasing rate and rent than non-green buildings, about 3.1dollars more per square foot per calendar year. People who prefer to green buildings also prefer to Class A buildings. However, the main goal for us is earing. So we also need to consider the interest rate. If we decide to build a green building and want to make profit on 8th year, the interest rate must be lower than 5.05%. Otherwise, it is much better to build a non-green building.
+
+
+# Boostrapping  
+###Setup:  
+```{r}
+library(mosaic)
+library(quantmod)
+library(foreach)
+```
+
+```{r}
+mystocks = c("SPY", "TLT", "LQD", "EEM", "VNQ")
+myprices = getSymbols(mystocks, from = "2007-01-01")
+
+for(ticker in mystocks) {
+  expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+  eval(parse(text=expr))
+}
+
+# Combine all the returns in a matrix
+all_returns = cbind( ClCl(SPYa),
+                     ClCl(TLTa),
+                     ClCl(LQDa),
+                     ClCl(EEMa),
+                     ClCl(VNQa))
+all_returns = as.matrix(na.omit(all_returns))
+
+# Compute the returns from the closing prices
+pairs(all_returns)
+```
+```{r}
+cor(all_returns)
+```
+
+From the pairwise plots and the correlation matrix, we find that:  
+1) relatively strong negative correlations: SPYa & TLTa, TLTa & VNQa;   
+2) relatively strong positive correlations: SPYa & VNQa, TLTa & LQDa; SPYa & EEMa.  
+
+```{r}
+summary(all_returns)
+apply(all_returns,2,sd)
+```
+
+It seems that among these five asset classes, SPY, TLT and LQD are the safe ones while EEM and VNQ are the aggressive ones.  
+
+### Even split portfolio:  
+First, let's try to peoform an even split portfolio.
+```{r}
+set.seed(100)
+initial_wealth = 100000
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights = c(0.2, 0.2, 0.2, 0.2, 0.2)
+  holdings = weights * total_wealth
+  n_days = 20
+  wealthtracker = rep(0, n_days)
+  for(today in 1:n_days) {
+    return.today = resample(all_returns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*return.today
+    total_wealth = sum(holdings)
+    wealthtracker[today] = total_wealth
+    holdings = weights * total_wealth
+  }
+  wealthtracker
+}
+
+# Profit/loss
+mean(sim1[,n_days]) #100863.4
+#hist(sim1[,n_days]- initial_wealth, breaks=30)
+
+# Calculate 5% value at risk
+quantile(sim1[,n_days], 0.05) - initial_wealth #-6417.009 
+```
+
+The average profit of the even split portfolio is 863.4 and the corresponding 5% value at risk is 6417.  
+
+### Safe split portfolio:  
+Let's try several different safer portfolios. For each portfolio, we just invest SPY, TLT and LQD.  
+####(1)safe split (0.3, 0.4, 0.3, 0, 0):  
+The strategy for this split is that, since TLT has the lowest risk for losing much money among these three safe assets, I would like to assign 0.4 to TLT and evenly assign 0.3 to each of the other two.  
+```{r}
+set.seed(100)
+initial_wealth = 100000
+sim2 = foreach(i=1:5000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights = c(0.3, 0.4, 0.3, 0, 0)
+  holdings = weights * total_wealth
+  n_days = 20
+  wealthtracker = rep(0, n_days)
+  for(today in 1:n_days) {
+    return.today = resample(all_returns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*return.today
+    total_wealth = sum(holdings)
+    wealthtracker[today] = total_wealth
+    holdings = weights * total_wealth
+  }
+  wealthtracker
+}
+
+# Profit/loss
+mean(sim2[,n_days]) # 100547.3
+#hist(sim2[,n_days]- initial_wealth, breaks=30)
+
+# Calculate 5% value at risk
+quantile(sim2[,n_days], 0.05) - initial_wealth #-2948.733  
+```
+
+The average profit of this portfolio is 547.3 and the corresponding 5% value at risk is 2948.733. Comparing to the even split, it has lower profit on average, and meanwhile has lower corresponding 5% value at risk.  
+
+####(2)safe split (0.2, 0.4, 0.4, 0, 0):  
+The strategy for this split is that, since 1) TLT is the safest one, and 2) TLT's return has negative correlation with SPY's return but postive correlation with LQD's return, I'd like to assign 0.2, 0.4, 0.4 to SPY, TLT, LQD, respectively.  
+```{r}
+set.seed(100)
+initial_wealth = 100000
+sim2_2 = foreach(i=1:5000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights = c(0.2, 0.4, 0.4, 0, 0)
+  holdings = weights * total_wealth
+  n_days = 20
+  wealthtracker = rep(0, n_days)
+  for(today in 1:n_days) {
+    return.today = resample(all_returns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*return.today
+    total_wealth = sum(holdings)
+    wealthtracker[today] = total_wealth
+    holdings = weights * total_wealth
+  }
+  wealthtracker
+}
+
+# Profit/loss
+mean(sim2_2[,n_days]) # 100507.2
+#hist(sim2_2[,n_days]- initial_wealth, breaks=30)
+
+# Calculate 5% value at risk
+quantile(sim2_2[,n_days], 0.05) - initial_wealth #-2945.589
+```
+
+The average profit of this portfolio is 507.2 and the corresponding 5% value at risk is 2945.589. Comparing to the former two portfolios, this one is the safest one with lowest profit and risk.   
+
+### Aggressive split portfolio:  
+Now, we would go for aggresive investment. For each portfolio, we just consider to invest EEM and VNQ.   
+####(1)Aggressive split (0, 0, 0, 0.5,0.5):  
+The strategy for this split is just to invest these two aggresive assets evenly.  
+```{r}
+set.seed(100)
+initial_wealth = 100000
+sim3 = foreach(i=1:5000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights = c(0, 0, 0, 0.5,0.5)
+  holdings = weights * total_wealth
+  n_days = 20
+  wealthtracker = rep(0, n_days)
+  for(today in 1:n_days) {
+    return.today = resample(all_returns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*return.today
+    total_wealth = sum(holdings)
+    wealthtracker[today] = total_wealth
+    holdings = weights * total_wealth
+  }
+  wealthtracker
+}
+
+# Profit/loss
+mean(sim3[,n_days]) # 101330.1
+#hist(sim3[,n_days]- initial_wealth, breaks=30)
+
+# Calculate 5% value at risk
+quantile(sim3[,n_days], 0.05) - initial_wealth #-12601.31
+```
+
+The average profit of this portfolio is 1330.1 and the corresponding 5% value at risk is 12601.31. As expected, this portfolio is likely to produce much higher profit. However, the risk also increases dramaticaly.  
+
+####(2)Aggressive split (0, 0, 0, 0.8,0.2):   
+Comparing the performances of EEM and VNQ, EEM is the more aggressive one. This time, we take a risk for higher profit. Let's assgin 0.8 of wealth for EEM and the left 0.2 for VNQ.    
+```{r}
+set.seed(100)
+initial_wealth = 100000
+sim3 = foreach(i=1:5000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights = c(0, 0, 0, 0.8,0.2)
+  holdings = weights * total_wealth
+  n_days = 20
+  wealthtracker = rep(0, n_days)
+  for(today in 1:n_days) {
+    return.today = resample(all_returns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*return.today
+    total_wealth = sum(holdings)
+    wealthtracker[today] = total_wealth
+    holdings = weights * total_wealth
+  }
+  wealthtracker
+}
+
+# Profit/loss
+mean(sim3[,n_days]) # 101679.2
+#hist(sim3[,n_days]- initial_wealth, breaks=30)
+
+# Calculate 5% value at risk
+quantile(sim3[,n_days], 0.05) - initial_wealth #-12876.22 
+```
+
+The average profit of this portfolio is 1679.2 and the corresponding 5% value at risk is 12876.22.  
+Again, this portfolio could may more profit than the previous one. And making tradeoff between profit and risk, I think this portfolio actually outperform the even aggresive split portfolio.    
+
+####(3)Aggressive split (0, 0, 0, 0.9,0.1):  
+Let's try an even more aggresive one.  
+```{r}
+set.seed(100)
+initial_wealth = 100000
+sim3 = foreach(i=1:5000, .combine='rbind') %do% {
+  total_wealth = initial_wealth
+  weights = c(0, 0, 0, 0.9,0.1)
+  holdings = weights * total_wealth
+  n_days = 20
+  wealthtracker = rep(0, n_days)
+  for(today in 1:n_days) {
+    return.today = resample(all_returns, 1, orig.ids=FALSE)
+    holdings = holdings + holdings*return.today
+    total_wealth = sum(holdings)
+    wealthtracker[today] = total_wealth
+    holdings = weights * total_wealth
+  }
+  wealthtracker
+}
+
+# Profit/loss
+mean(sim3[,n_days]) # 101794
+#hist(sim3[,n_days]- initial_wealth, breaks=30)
+
+# Calculate 5% value at risk
+quantile(sim3[,n_days], 0.05) - initial_wealth #-13040.19 
+```
+
+The average profit of this portfolio is 1794 and the corresponding 5% value at risk is 13040.19. Same conclusion as before. Higher profit, higher risk!       
+#Market segmentation   
+###Data pre-processing   
+```{r}
+N20 = read.csv("https://raw.githubusercontent.com/jgscott/STA380/master/data/social_marketing.csv", header = TRUE, row.names = 1)
+dim(N20)
+names(N20)
+```
+
+From the data pre-processing, we can see that we have 7882 twitter participates with 36 different interests categories.  
+
+###Trends of interests in 7 days  
+```{r}
+#Barplot on all categories       
+par(mar = c(7, 4, 4, 2) + 0.2)
+N20_sum = sort(colSums(N20), decreasing = TRUE)
+barplot(N20_sum, 
+        main = 'Frequency of Tweet Interests Shown Up', 
+        ylab = "Frequency",
+        col = "lightskyblue",
+#       horiz = TRUE, 
+        cex.names = 0.9,
+        las = 2,
+        space = 0.5)
+```
+
+From the bar plot we can easily see the trends in 7 days, the most popular topics as well as the least. One thing we might notice is that "chatter" is the top most frequent category, but it could due to lots of annotators used this category for posts that didn't fit at all into any of the listed interest categories.  
+
+###The top 10 most popular interests  
+```{r}
+#Barplot on top 10 categories 
+n = N20_sum[c(2:11)]
+par(mar = c(7, 4, 4, 2) + 0.2)
+barplot(n, 
+        main = 'Top 10 Most Popular Topics',
+        ylab = "Frequency",
+        col = "lightskyblue",
+        cex.names = 0.9,
+        las = 2,
+        space = 0.5)
+```
+
+This plot shows the most frequent topics shown up in our 7-day data sample, except chatter, which are uncategorized. We suggest NutrientH20 post more tweets related to these topics.   
+
+###The top 10 least popular interests  
+```{r}
+#Barplot on last 10 categories 
+n2 = N20_sum[c(27:36)]
+par(mar = c(7, 4, 4, 2) + 0.2)
+barplot(n2, 
+        main = 'Top 10 Least Popular Topics', 
+        ylab = "Frequency",
+        col = "lightskyblue",
+        cex.names = 0.9,
+        las = 2,
+        space = 0.5)
+```
+
+Similarly, this plot shows the least frequent topics shown up in our 7-day data sample. We suggest NutrientH20 post less tweets related to these topics.   
+
+###Correlation between interests  
+```{r}
+library(caret)
+library(corrplot)
+findCorrelation(cor(N20), cutoff = .65, verbose = TRUE)
+corrplot(cor(N20), tl.cex=0.7, cl.cex=0.7, number.cex=0.6, type = "upper")
+```
+
+From the correlation plots, we can see serval highly corelated pairs such as "personal fitness" and "health nutrition", "college university" and "online gaming", "cooking" and "fashion".  
+
+```{r}
+corrplot(cor(N20), tl.cex=0.7, cl.cex=0.7, number.cex=0.6, order = "hclust") 
+```
+
+From the correlation matrix, there are some obvious relatively high correlations within some feature groups.  
+
+Group 1: beauty, cooking, fashion  
+
+Group 2: outdoors, health nutrition, personal fitness
+
+Group 3: computers, travel, politics
+
+Group 4: photo sharing, chatter, shopping
+
+Group 5: sports playing, online gaming, college university
+
+Group 6: tv film, art
+
+Group 7: news, automotive
+
+Group 8: family, school, food, sports fandom, religion, parenting
+
+This result seems reasonable to our intuition. Take Group 5 as an example. The users who have more college university related posts tend to have more posts on sports playing topics and online gaming topics, since these users are likely to be college students.  
+
+### factor analysis  
+```{r}
+factanal(N20,factors=10,rotation = 'varimax')
+```
+
+The first ten factors can only account for 50.8% of the variance. But still, we can obtain some useful information from factor analysis. For example, those users with high score of factor1 are likely to be parents, because they are interested in sports_fandom, food, family, religion, parenting, school topics. As for factor2 which is mainly composed by health_nutrition, outdoors and personal_fitness, users with high score of factor2 are those who care about personal health. We can calculate the scores of these factors for each users, and thus to detech which consumer groups they might be.  
+
+###Any clusters?  
+####K-means clustering  
+```{r}
+library(LICORS)
+n=dim(N20)[1]
+wgss<-rep(0,19)
+btss<-rep(0,19)
+CH=rep(0,19)
+for (i in 1:19){
+  model=kmeanspp(N20,k=i, start='random',nstart = 10)
+  wgss[i]=model$tot.withinss
+  btss[i]=model$betweenss
+  CH[i]=btss[i]/wgss[i]*(n-i)/(i-1)
+}
+plot(1:19,wgss,type='b',xlab='Number of clusters',ylab='Within cluster sum of square')
+plot(1:19,CH,type='b',xlab='Number of clusters',ylab='CH index')
+```
+
+It's hard to choose number of clusters.  
+
+```{r}
+library(factoextra)
+k2 <- kmeans(N20, centers = 2, nstart = 50)
+k3 <- kmeans(N20, centers = 3, nstart = 50)
+k4 <- kmeans(N20, centers = 4, nstart = 50)
+k5 <- kmeans(N20, centers = 5, nstart = 50)
+k6 <- kmeans(N20, centers = 6, nstart = 50)
+k7 <- kmeans(N20, centers = 7, nstart = 50)
+k8 <- kmeans(N20, centers = 8, nstart = 50)
+k9 <- kmeans(N20, centers = 9, nstart = 50)
+```
+
+####Plots to compare  
+```{r}
+p1 <- fviz_cluster(k2, geom = "point", data = N20) + ggtitle("k = 2")
+p2 <- fviz_cluster(k3, geom = "point",  data = N20) + ggtitle("k = 3")
+p3 <- fviz_cluster(k4, geom = "point",  data = N20) + ggtitle("k = 4")
+p4 <- fviz_cluster(k5, geom = "point",  data = N20) + ggtitle("k = 5")
+p5 <- fviz_cluster(k6, geom = "point",  data = N20) + ggtitle("k = 6")
+p6 <- fviz_cluster(k7, geom = "point",  data = N20) + ggtitle("k = 7")
+p7 <- fviz_cluster(k8, geom = "point",  data = N20) + ggtitle("k = 8")
+p8 <- fviz_cluster(k9, geom = "point",  data = N20) + ggtitle("k = 9")
+
+library(gridExtra)
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+grid.arrange(p5, p6, p7, p8, nrow = 2)
+```
+
+We can view our results after we try different k value. Since we have more than two variables, the "fviz_cluster" function will perform principal component analysis for us and plot the data points based on the first two principal components which could explain the majority of the variance.   
+
+### Conclusion  
+```{r}
+N20_2=N20[,-c(1,5)]
+corrplot(cor(N20_2), tl.cex=0.7, cl.cex=0.7, number.cex=0.6, order = "hclust",addrect = 14) 
+```
+  
+Among all categories, *photo_sharing* is the most popular category and *small busienss* is the least popular category, exclude *spam*.  
+Based on our analysis, we seperate the market into 14 group by using correlation analysis. For example, * music, beauty, cooking, fashion* can be put into one group and it is reasonable. Since a person who loves music or fashion most likely to be a person who pay attention to the quantity of life, so he or she may also interests in cooking and beauty. We also tried to use cluster but which is not a good choice for this dataset.  
