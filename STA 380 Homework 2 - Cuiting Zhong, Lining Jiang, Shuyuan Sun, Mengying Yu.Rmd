@@ -1,0 +1,409 @@
+---
+title: 'STA 380, Part 2: Exercises 2'
+author: "Mengying Yu, Lining Jiang, Shuyuan Sun, Cuiting Zhong"
+date: "August 19, 2018"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+##Flights at ABIA  
+```{r}
+#Import ABIA data
+ABIA=read.csv("https://raw.githubusercontent.com/jgscott/STA380/master/data/ABIA.csv")
+attach(ABIA)
+library(ggplot2)
+library(ggpubr)
+```
+  
+```{r}
+#Turn catigorical variables into factors 
+DayofMonth=as.factor(DayofMonth)
+DayOfWeek=as.factor(DayOfWeek)
+Dest=as.factor(Dest)
+Diverted=as.factor(Diverted)
+Cancelled=as.factor(Cancelled)
+CancellationCode=as.factor(CancellationCode)
+Month=as.factor(Month)
+Origin=as.factor(Origin)
+UniqueCarrier=as.factor(UniqueCarrier)
+```
+  
+  
+```{r}
+#Split delay time into delay(>0) and arrive in advance(<=0)
+ABIA$Adelay=ifelse(ABIA$ArrDelay>0,ABIA$ArrDelay, NA)
+ABIA$Aahead=ifelse(ABIA$ArrDelay<=0,-ABIA$ArrDelay,NA)
+ABIA$Ddelay=ifelse(ABIA$DepDelay>0,ABIA$DepDelay,NA)
+ABIA$Dahead=ifelse(ABIA$DepDelay<=0,-ABIA$DepDelay,NA)
+```
+  
+ 
+```{r}
+ggplot(ABIA,aes(x = Month ,na.rm = TRUE, colour = ArrivalType)) +
+  geom_line(aes(y=Adelay,color='Delay'),stat = "summary", fun.y = "mean",na.rm = TRUE)+
+  geom_line(aes(y=Aahead*2.8,color='Ahead'),stat = "summary", fun.y = "mean",na.rm = TRUE)+
+  scale_x_continuous(breaks=c(1,2,3,4,5,6,7,8,9,10,11,12))+
+  scale_y_continuous(sec.axis = sec_axis(~./2.8, name = "Arrive Ahead (min)"))+
+  ylab('Arrival Delay (min)')+
+  ggtitle('Average Monthly Delay/Ahead Time')+
+  theme_minimal()
+```
+  
+We can see that December is the month with the highest average delay, following by March, June and July. September, October and November seem to be most 'Punctuate'. Typically, the month with a higher average delay tends to have lower average time arrive in advance (but this is not so obvious).   
+ 
+```{r}
+ggplot(ABIA,aes(x = Month ,na.rm = TRUE, colour = DelayType)) +
+  geom_line(aes(y=Adelay,color='Arrival'),stat = "summary", fun.y = "mean",na.rm = TRUE)+
+  geom_line(aes(y=Ddelay,color='Departure'),stat = "summary", fun.y = "mean",na.rm = TRUE)+
+  scale_x_continuous(breaks=c(1,2,3,4,5,6,7,8,9,10,11,12))+
+  ylab('Delay Time (min)')+
+  ggtitle('Average Monthly Arrival/Departure Delay Time')+
+  theme_minimal()
+```  
+
+Apparently, months with a higher average arrival delay tend to have a higher average departure delay. This may be because that given flight time period stays the same, departure delays will always lead to arrival delays.
+ 
+```{r}
+#Average arrival delay for each day of month 
+ggplot(ABIA, aes(x=DayofMonth, y=Adelay, na.rm = TRUE))+
+  stat_summary(fun.y="mean", geom="line",col='red', na.rm = TRUE)+
+  scale_x_continuous(breaks=c(1:31))+
+  stat_summary(aes(label=round(..y..,1)), fun.y="mean", geom="text", size=3,vjust = -1,na.rm = TRUE)+
+  theme_minimal()+
+  ggtitle('Average Arrival Delay for Each Day of Month')+
+  xlab('Day of Month')+
+  ylab('Arrival Delay (min)')
+```
+  
+There seems no particular trends for days of month.  
+
+```{r}
+#Average Arrival Delay Time for Day of Week
+p3=ggplot(ABIA, aes(x=DayOfWeek, y=Adelay, na.rm = TRUE)) +
+  stat_summary(fun.y="mean", geom="bar",fill='lightblue', na.rm = TRUE) +
+  scale_x_continuous(breaks=c(1,2,3,4,5,6,7)) +
+  stat_summary(aes(label=round(..y..,2)), fun.y="mean", geom="text", size=3,vjust = -0.5,na.rm = TRUE) +
+  theme_minimal() +
+  ggtitle('Average Arrival Delay Time for Day of Week') +
+  xlab('Day Of Week 1 (Monday) - 7 (Sunday)') +
+  ylab('Arrival Delay (min)')+
+  coord_cartesian(ylim=c(0,32))
+
+#Average Departure Delay Time in Day of Week
+p4=ggplot(ABIA, aes(x=DayOfWeek, y=Ddelay, na.rm = TRUE)) + 
+  stat_summary(fun.y="mean", geom="bar",fill='pink', na.rm = TRUE) + 
+  scale_x_continuous(breaks=c(1,2,3,4,5,6,7)) + 
+  stat_summary(aes(label=round(..y..,2)), fun.y="mean", geom="text", size=3,vjust = -0.5,na.rm = TRUE) +
+  theme_minimal() +
+  ggtitle('Average Departure Delay Time for Day of Week') +
+  xlab('Day Of Week 1 (Monday) - 7 (Sunday)') +
+  ylab('Depature Delay (min)')+
+  coord_cartesian(ylim=c(0,32))
+
+ggarrange(p3,p4, ncol = 1, nrow = 2)
+```
+
+In the scope of week, we can't identify any specific pattern of which day having extremely high or low arrive delay time. However, the trend of these plots are totally identical.
+
+```{r}
+#Average arrival delay and carrier delay for each Carrier  
+p5=ggplot(ABIA, aes(x=UniqueCarrier, y=Adelay, na.rm = TRUE))+
+  stat_summary(fun.y="mean", geom="bar",fill='lightblue', na.rm = TRUE)+
+  stat_summary(aes(label=round(..y..,2)), fun.y="mean", geom="text", size=3,vjust = -0.5,na.rm = TRUE)+
+  theme_minimal()+
+  ggtitle('Average arrival delay for each Carrier')+
+  xlab('Unique Carrier Code')+
+  ylab('Arrival Delay (min)')+
+  coord_cartesian(ylim=c(0,45))
+
+p6=ggplot(ABIA, aes(x=UniqueCarrier, y=CarrierDelay, na.rm = TRUE))+
+  stat_summary(fun.y="mean", geom="bar",fill='pink', na.rm = TRUE)+
+  stat_summary(aes(label=round(..y..,2)), fun.y="mean", geom="text", size=3,vjust = -0.5,na.rm = TRUE)+
+  theme_minimal()+
+  ggtitle('Average carrier delay for each Carrier')+
+  xlab('Unique Carrier Code')+
+  ylab('Arrival Delay (min)')+
+  coord_cartesian(ylim=c(0,45))
+
+ggarrange(p5,p6, ncol = 1, nrow = 2)
+```
+  
+From these plots we can see that the higher average arrival delay for each carrier may not be due to their own fault. Airline YV and EV have both higher average arrival delay and average carrier delay, so it may be unwise to choose from these two carriers.  
+
+Based on the five plots above, we can have a general idea of how these five major delay reasons contributed to the overall delay time. 
+
+```{r}
+ggplot(ABIA, aes(x=Month, na.rm = TRUE, colour = Type)) + 
+  geom_line(aes(y = LateAircraftDelay, colour="Late Aircraft Delay"), stat = "summary", fun.y = "mean", na.rm = TRUE) + 
+  geom_line(aes(y = SecurityDelay, colour = "Security Delay"), stat = "summary", fun.y = "mean", na.rm = TRUE) +
+  geom_line(aes(y = NASDelay, colour = "NAS Delay"), stat = "summary", fun.y = "mean", na.rm = TRUE) +
+  geom_line(aes(y = WeatherDelay, colour = "Weather Delay"), stat = "summary", fun.y = "mean", na.rm = TRUE) +
+  geom_line(aes(y = CarrierDelay, colour = "Carrier Delay"), stat = "summary", fun.y = "mean", na.rm = TRUE) +
+  ylab(label="Delay Time (min)") + 
+  xlab("Month")+
+  scale_x_continuous(breaks=c(1,2,3,4,5,6,7,8,9,10,11,12)) +
+  ggtitle('Average Delay Time Due to Five Types of Delay')
+```
+
+According to this plot, we can see late aircraft delay is much higher than any other delay types except for September and October. Overall, there is one delay time drop on May, and another one on September to November expect for NAS delay. 
+
+##Author attribution
+1. Read in text data: 
+```{r}
+library(tm) #text mining
+library(magrittr) #pipe operator
+library(slam)
+library(proxy) #dist and similarity built in
+
+# change work dictionary
+setwd('C:\\Users\\cuiti\\Desktop\\UT Austin\\study\\Predictive Modeling-Unsupervised\\STA380-master')
+
+files_train = dir('data/ReutersC50/C50train', full.names=TRUE)
+files_test = dir('data/ReutersC50/C50test', full.names=TRUE)
+
+readerPlain = function(fname){
+  readPlain(elem=list(content=readLines(fname)), 
+            id=fname, language='en') }
+
+readNYT = function(filename) {
+  file_all=NULL
+  for (i in 1:50){
+    file_list=Sys.glob(paste(filename[i],'/*.txt',sep=''))
+    file_all=c(file_all,file_list)
+  }
+  lapply(file_all, readerPlain)
+}
+
+readname = function(filename){
+  file_name=NULL
+  for (i in 1:50){
+    file_list=Sys.glob(paste(filename[i],'/*.txt',sep=''))
+    mynames = file_list %>%
+    { strsplit(., '/', fixed=TRUE) } %>%
+    { lapply(., tail, n=2) } %>%
+    { lapply(., paste0, collapse = '') } %>%
+      unlist
+    file_name=c(file_name,mynames)  
+  }
+  file_name
+}
+
+author_dirs = Sys.glob('data/ReutersC50/C50train/*')
+file_list = NULL
+labels = NULL
+for(author in author_dirs) {
+  author_name = substring(author, first=26)
+  files_to_add = Sys.glob(paste0(author, '/*.txt'))
+  file_list = append(file_list, files_to_add)
+  labels = append(labels, rep(author_name, length(files_to_add)))
+}
+
+train=readNYT(files_train)
+names(train)=readname(files_train)
+test=readNYT(files_test)
+names(test)=readname(files_test)
+
+corpus_train = Corpus(VectorSource(train))
+corpus_train = tm_map(corpus_train, content_transformer(tolower))
+corpus_train = tm_map(corpus_train, content_transformer(removeNumbers))
+corpus_train = tm_map(corpus_train, content_transformer(removePunctuation))
+corpus_train = tm_map(corpus_train, content_transformer(stripWhitespace))
+corpus_train = tm_map(corpus_train, content_transformer(removeWords), stopwords("en"))
+
+DTM_train = DocumentTermMatrix(corpus_train)
+DTM_train = removeSparseTerms(DTM_train, 0.998)
+
+# Create the testing corpus, tokenize, preprocess, etc
+corpus_test = Corpus(VectorSource(test))
+corpus_test = tm_map(corpus_test, content_transformer(tolower))
+corpus_test = tm_map(corpus_test, content_transformer(removeNumbers))
+corpus_test = tm_map(corpus_test, content_transformer(removePunctuation))
+corpus_test = tm_map(corpus_test, content_transformer(stripWhitespace))
+corpus_test = tm_map(corpus_test, content_transformer(removeWords), stopwords("en"))
+
+# DTM for testing corpus
+DTM_test =  DocumentTermMatrix(corpus_test, list(dictionary=Terms(DTM_train)))
+```
+
+2. Use Naive Bayes to do classification: 
+```{r}
+# Naive Bayes
+library(e1071)
+X = as.matrix(DTM_train)
+X_test = as.matrix(DTM_test)
+X_Y = cbind(X, labels)
+X_test_Y = cbind(X_test, labels)
+X_Y = data.frame(X_Y)
+X_test_Y = data.frame(X_test_Y)
+X_Y$labels = as.factor(X_Y$labels)
+X_test_Y$labels = as.factor(X_test_Y$labels)
+
+m<- naiveBayes(X_Y[,-ncol(X_Y)], X_Y$labels, laplace = 1)
+p<- predict(m, X_test_Y[,-ncol(X_test_Y)])
+tb=table(p, X_test_Y[,ncol(X_test_Y)])
+print(tb[1:10, 1:10])
+accuracy = sum(p == X_test_Y[,ncol(X_test_Y)]) / 2500
+accuracy #0.6408
+```
+
+We try to use term frequency of the training set to built a Naive Bayes classifier and then make predictions for the testing set. The accuracy of Naive Bayes classifier is 64.08%.
+
+3. Combination of glmnet model and PCA:  
+```{r}
+## glmnet
+library(glmnet)
+tfidf_train= weightTfIdf(DTM_train)
+tfidf_test = weightTfIdf(DTM_test)
+X_train_glm = as.matrix(tfidf_train)
+scrub_cols = which(colSums(X_train_glm) == 0)
+X_train_glm = X_train_glm[,-scrub_cols]
+pca_train = prcomp(X_train_glm, scale=TRUE)
+X_train_pc = pca_train$x[,1:100]
+y_temp=lapply(strsplit(files_train, '/', fixed=TRUE), tail, n=1)
+y_train=NULL
+for (i in 1:50){
+  temp=rep(y_temp[[i]],50)
+  y_train=c(y_train,temp)
+}
+# fitting glmnet
+set.seed(14)
+out1 = cv.glmnet(X_train_pc, y_train, family='multinomial', type.measure="class") 
+#min(out1$cvm)  
+#lambda_hat = out1$lambda.min
+## --Comment-- : We find that we can't find the glmnet with a specific lambda since it cannot converge after maxit=100000 iterations
+#glm1 = glmnet(X_train_pc, y_train, family='multinomial', lambda = lambda_hat)
+#X_test = as.matrix(tfidf_test)
+#X_test_pc=predict(pca_train,X_test)[,1:100]
+#y_hat=predict(glm1, X_test_pc, type="class")
+#y_temp=lapply(strsplit(files_test, '/', fixed=TRUE), tail, n=1)
+#y_test=NULL
+#for (i in 1:50){
+#  temp=rep(y_temp[[i]],50)
+#  y_test=c(y_test,temp)
+#}
+#y_hat=predict(glm1, X_test_pc, type="class")
+#sum(y_test==pred)/2500
+
+# let's try 100 different lambdas
+glm1 = glmnet(X_train_pc, y_train, family='multinomial')
+X_test = as.matrix(tfidf_test)
+X_test_pc=predict(pca_train,X_test)[,1:100]
+y_hat=predict(glm1, X_test_pc, type="class")
+y_temp=lapply(strsplit(files_test, '/', fixed=TRUE), tail, n=1)
+y_test=NULL
+for (i in 1:50){
+  temp=rep(y_temp[[i]],50)
+  y_test=c(y_test,temp)
+}
+
+accuracy = foreach(i = 1:100, .combine='c') %do% {
+  pred = y_hat[,i]
+  sum(y_test==pred)/2500
+}
+max(accuracy) #0.6048
+```
+
+First, perform PCA on the training set and extract the first princial components to fit glmnet models with 100 different lambda. Then we calculate the first 100 PC scores of the test set, and use those fitted models to do classification. We find that the highest accuracy we can get from a glmnet model is 60.48%.
+
+
+4. Similarity:
+```{r}
+authors = unique(labels)
+confustion_table = table(p, X_test_Y[,ncol(X_test_Y)])
+index_similarity = which(confustion_table>2, arr.ind = T)
+index_frame = data.frame(index_similarity)
+index_frame2 = index_frame[index_frame$p != index_frame$V2,]
+index_frame2 = cbind(index_frame2, predict_author = 0)
+for(a in 1:nrow(index_frame2))
+{
+  index_frame2[a, 3] = authors[index_frame2[a,1]]
+}
+index_frame2 = cbind(index_frame2, origin_author = 0)
+for(b in 1:nrow(index_frame2))
+{
+  index_frame2[b, 4] = authors[index_frame2[b,2]]
+}
+
+similar_author = data.frame(authors)
+similar_author= cbind(similar_author,similar = 0)
+for (j in 1:50){
+  author_temp = authors[j]
+  subset_temp = index_frame2[index_frame2$origin_author==author_temp,]
+  similar_author[j,2] = paste(unlist(subset_temp$predict_author), collapse =" , ")
+  
+}
+similar_author[1:10,]
+
+#cosine()calculatesasimilaritymatrixbetweenallcolumnvectorsofamatrixx. 
+#Thismatrixmight be a document-term matrix, so columns would be expected to be documents and rows to be terms. 
+#matrix_sim = as.matrix(t(DTM_train))
+#similarity = cosine(matrix_sim)
+#similarity[1:10, 1:10]
+
+```
+
+In order to find the sets of authors whose articles seem difficult to distinish from one another, we used the confusion table result of Naive Bayes Model. Then, we found the index of entries which the model predicted wrong more than twice. Finally, we constucted a table to conclude similar authors for each author. For example, If the origin author is AlanCrosby, the similar authors are JanLopatka and JoWinterbottom. The above table only shows 10 authors and their similar authors. 
+
+
+##Practice with association rule mining
+```{r}
+library(tidyverse)
+library(arules)  # has a big ecosystem of packages built around it
+library(arulesViz)
+library(magrittr)
+
+test<-read.csv('https://raw.githubusercontent.com/jgscott/STA380/master/data/groceries.txt',header = FALSE,na.strings=NaN)
+grocery <- read.csv('https://raw.githubusercontent.com/jgscott/STA380/master/data/groceries.txt',header = FALSE)
+
+
+grocery$basket=1:dim(grocery)[1]
+col=c('basket','goods')
+V1=grocery[,c(5,1)]
+V2=grocery[,c(5,2)]
+V3=grocery[,c(5,3)]
+V4=grocery[,c(5,4)]
+names(V1)=col
+names(V2)=col
+names(V3)=col
+names(V4)=col
+grocery2=rbind(V1,V2,V3,V4)
+grocery2=grocery2[grep('[a-z]',grocery2[,2]),]
+
+grocery_split = split(x=grocery2$goods, f=grocery2$basket)
+groctrans = as(grocery_split, "transactions")
+
+rules = apriori(groctrans, 
+                parameter=list(support=.003, confidence=.2, maxlen=5))
+
+plot(rules)
+```
+    
+We examined several pairs of supports and confidences until we found sufficient number of rules. Since support stands for how popular a basket is, as measured by the proportion of transactions in which a basket appears; confidence says how likely grocery A is purchased when grocery B is purchased; lift shows how likely grocery A is purchased when grocery B is purchased, while controlling for how popular B is. Therefore, grocery with higher lift tends to have lower support.  
+
+```{r}
+plot(rules, method='two-key plot')
+```
+  
+Apparently, rule bodies with only two groceries tend to have higher support (frequency) than those with three groceries. This is obvious because itemset of only two can also appear in itemset of three.  
+
+```{r}
+sub1 = subset(rules, subset=lift>2.3 & confidence > 0.2)
+
+plot(sub1, method='graph')
+```
+  
+We noticed something interesting from this plot. For example, the rules among tropical fruit, pip fruit and citrus fruit have higher lifts indicating that there exists a strong association among these fruits. In contrast, rules between root vegetables and other variables has higher support but lower lift. This implies a high frequency of this itemset but weak association between items in this itemset.  
+
+```{r}
+plot(head(sub1, 10, by='lift'), method='graph')
+```
+  
+This plot selected top 10 rules based on the value of lifts. These rules show the strong associations between meat to sausage, onions to root vegetables, beef to root vegetables, herbs to vegetables, grapes to tropical fruit, pip fruit between citrus fruit and tropical fruit. 
+
+```{r}
+detach(ABIA)
+```
+
